@@ -1,3 +1,16 @@
 spring:
   application:
     name: Employee-Management-System
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-long-thunder-ap3vhc26-pooler.c-7.us-east-1.aws.neon.tech:5432/neondb?sslmode=require}
+    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
+    password: npg_GSjPmv8ixF7J
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
