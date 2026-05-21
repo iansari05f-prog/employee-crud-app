@@ -1,4 +1,4 @@
-package com.ems.crud.employee;
+package com.ems.crud.employee.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -10,8 +10,12 @@ public record EmployeeResponse(
 		String email,
 		String phoneNumber,
 		String jobTitle,
-		String department,
+		Long departmentId,
+		String departmentName,
 		BigDecimal salary,
+		Integer experienceYears,
+		String photoPath,
+		String resumePath,
 		LocalDateTime createdAt,
 		LocalDateTime updatedAt
 ) {

@@ -7,6 +7,8 @@ import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -30,6 +32,30 @@ public class GlobalExceptionHandler {
 		return buildErrorResponse(HttpStatus.CONFLICT, exception.getMessage(), request, null);
 	}
 
+	@ExceptionHandler({BadRequestException.class, IllegalArgumentException.class})
+	public ResponseEntity<ApiError> handleBadRequestException(
+			RuntimeException exception,
+			HttpServletRequest request
+	) {
+		return buildErrorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request, null);
+	}
+
+	@ExceptionHandler({UnauthorizedException.class, BadCredentialsException.class})
+	public ResponseEntity<ApiError> handleUnauthorizedException(
+			RuntimeException exception,
+			HttpServletRequest request
+	) {
+		return buildErrorResponse(HttpStatus.UNAUTHORIZED, exception.getMessage(), request, null);
+	}
+
+	@ExceptionHandler({ForbiddenException.class, AccessDeniedException.class})
+	public ResponseEntity<ApiError> handleForbiddenException(
+			RuntimeException exception,
+			HttpServletRequest request
+	) {
+		return buildErrorResponse(HttpStatus.FORBIDDEN, exception.getMessage(), request, null);
+	}
+
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<ApiError> handleMethodArgumentNotValidException(
 			MethodArgumentNotValidException exception,
@@ -48,6 +74,11 @@ public class GlobalExceptionHandler {
 			HttpServletRequest request
 	) {
 		return buildErrorResponse(HttpStatus.CONFLICT, "Request violates a database constraint", request, null);
+	}
+
+	@ExceptionHandler(Exception.class)
+	public ResponseEntity<ApiError> handleGenericException(Exception exception, HttpServletRequest request) {
+		return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error", request, null);
 	}
 
 	private ResponseEntity<ApiError> buildErrorResponse(
