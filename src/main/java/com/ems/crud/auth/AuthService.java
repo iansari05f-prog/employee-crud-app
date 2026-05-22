@@ -1,16 +1,23 @@
 package com.ems.crud.auth;
 
 import com.ems.crud.auth.dto.AuthResponse;
+import com.ems.crud.auth.dto.ChangePasswordRequest;
+import com.ems.crud.auth.dto.ForgotPasswordRequest;
+import com.ems.crud.auth.dto.ForgotPasswordResponse;
 import com.ems.crud.auth.dto.LoginRequest;
 import com.ems.crud.auth.dto.RegisterRequest;
+import com.ems.crud.auth.dto.ResetPasswordRequest;
 import com.ems.crud.common.Role;
 import com.ems.crud.employee.Employee;
 import com.ems.crud.employee.EmployeeRepository;
 import com.ems.crud.exception.BadRequestException;
 import com.ems.crud.exception.DuplicateResourceException;
+import com.ems.crud.exception.ForbiddenException;
 import com.ems.crud.exception.ResourceNotFoundException;
 import com.ems.crud.security.CustomUserDetailsService;
 import com.ems.crud.security.JwtService;
+import com.ems.crud.security.SecurityUtils;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,6 +36,8 @@ public class AuthService {
 	private final AuthenticationManager authenticationManager;
 	private final JwtService jwtService;
 	private final CustomUserDetailsService userDetailsService;
+	private final SecurityUtils securityUtils;
+	private final PasswordResetService passwordResetService;
 
 	public AuthService(
 			UserRepository userRepository,
@@ -36,7 +45,9 @@ public class AuthService {
 			PasswordEncoder passwordEncoder,
 			AuthenticationManager authenticationManager,
 			JwtService jwtService,
-			CustomUserDetailsService userDetailsService
+			CustomUserDetailsService userDetailsService,
+			SecurityUtils securityUtils,
+			PasswordResetService passwordResetService
 	) {
 		this.userRepository = userRepository;
 		this.employeeRepository = employeeRepository;
@@ -44,23 +55,36 @@ public class AuthService {
 		this.authenticationManager = authenticationManager;
 		this.jwtService = jwtService;
 		this.userDetailsService = userDetailsService;
+		this.securityUtils = securityUtils;
+		this.passwordResetService = passwordResetService;
 	}
 
 	@Transactional
 	public AuthResponse register(RegisterRequest request) {
-		String email = normalizeEmail(request.email());
+		if (request.role() != Role.EMPLOYEE) {
+			throw new ForbiddenException("Public registration is only allowed for EMPLOYEE accounts");
+		}
+		if (request.employeeId() == null) {
+			throw new BadRequestException("employeeId is required to link an employee profile");
+		}
 
+		String email = normalizeEmail(request.email());
 		if (userRepository.existsByEmailIgnoreCase(email)) {
 			throw new DuplicateResourceException("User already exists with email: " + email);
 		}
 
-		User user = new User(email, passwordEncoder.encode(request.password()), request.role());
+		Employee employee = employeeRepository.findById(request.employeeId())
+				.orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + request.employeeId()));
 
-		if (request.employeeId() != null) {
-			Employee employee = employeeRepository.findById(request.employeeId())
-					.orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + request.employeeId()));
-			user.setEmployee(employee);
+		if (!email.equalsIgnoreCase(employee.getEmail())) {
+			throw new BadRequestException("Registration email must match the employee profile email");
 		}
+		if (userRepository.existsByEmployeeId(employee.getId())) {
+			throw new DuplicateResourceException("A login account already exists for this employee");
+		}
+
+		User user = new User(email, passwordEncoder.encode(request.password()), request.role());
+		user.setEmployee(employee);
 
 		User savedUser = userRepository.save(user);
 		return buildAuthResponse(savedUser, generateToken(savedUser));
@@ -79,13 +103,43 @@ public class AuthService {
 		return buildAuthResponse(user, generateToken(user));
 	}
 
+	@Transactional
+	public void changePassword(ChangePasswordRequest request) {
+		User user = securityUtils.getCurrentUser();
+
+		if (!user.isMustChangePassword()) {
+			if (request.currentPassword() == null || request.currentPassword().isBlank()) {
+				throw new BadRequestException("Current password is required");
+			}
+			if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+				throw new BadRequestException("Current password is incorrect");
+			}
+		}
+
+		user.setPassword(passwordEncoder.encode(request.newPassword()));
+		user.setMustChangePassword(false);
+		userRepository.save(user);
+	}
+
+	@Transactional(readOnly = true)
+	public ForgotPasswordResponse forgotPassword(ForgotPasswordRequest request) {
+		return passwordResetService.requestReset(request.email());
+	}
+
+	@Transactional
+	public void resetPassword(ResetPasswordRequest request) {
+		passwordResetService.resetPassword(request);
+	}
+
 	private String generateToken(User user) {
 		UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
-		return jwtService.generateToken(userDetails, Map.of(
-				"role", user.getRole().name(),
-				"userId", user.getId(),
-				"employeeId", user.getEmployee() != null ? user.getEmployee().getId() : null
-		));
+		Map<String, Object> claims = new HashMap<>();
+		claims.put("role", user.getRole().name());
+		claims.put("userId", user.getId());
+		if (user.getEmployee() != null) {
+			claims.put("employeeId", user.getEmployee().getId());
+		}
+		return jwtService.generateToken(userDetails, claims);
 	}
 
 	private AuthResponse buildAuthResponse(User user, String token) {
@@ -95,7 +149,8 @@ public class AuthService {
 				user.getId(),
 				user.getEmail(),
 				user.getRole(),
-				user.getEmployee() != null ? user.getEmployee().getId() : null
+				user.getEmployee() != null ? user.getEmployee().getId() : null,
+				user.isMustChangePassword()
 		);
 	}
 

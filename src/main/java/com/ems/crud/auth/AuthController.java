@@ -1,21 +1,18 @@
 package com.ems.crud.auth;
 
+import com.ems.crud.auth.api.AuthApi;
 import com.ems.crud.auth.dto.AuthResponse;
+import com.ems.crud.auth.dto.ChangePasswordRequest;
+import com.ems.crud.auth.dto.ForgotPasswordRequest;
+import com.ems.crud.auth.dto.ForgotPasswordResponse;
 import com.ems.crud.auth.dto.LoginRequest;
 import com.ems.crud.auth.dto.RegisterRequest;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
+import com.ems.crud.auth.dto.ResetPasswordRequest;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/auth")
-@Tag(name = "Authentication", description = "Register and login with JWT")
-public class AuthController {
+public class AuthController implements AuthApi {
 
 	private final AuthService authService;
 
@@ -23,15 +20,30 @@ public class AuthController {
 		this.authService = authService;
 	}
 
-	@PostMapping("/register")
-	@Operation(summary = "Register a new user")
-	public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+	@Override
+	public ResponseEntity<AuthResponse> register(RegisterRequest request) {
 		return ResponseEntity.ok(authService.register(request));
 	}
 
-	@PostMapping("/login")
-	@Operation(summary = "Login and receive JWT token")
-	public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+	@Override
+	public ResponseEntity<AuthResponse> login(LoginRequest request) {
 		return ResponseEntity.ok(authService.login(request));
+	}
+
+	@Override
+	public ResponseEntity<Void> changePassword(ChangePasswordRequest request) {
+		authService.changePassword(request);
+		return ResponseEntity.noContent().build();
+	}
+
+	@Override
+	public ResponseEntity<ForgotPasswordResponse> forgotPassword(ForgotPasswordRequest request) {
+		return ResponseEntity.ok(authService.forgotPassword(request));
+	}
+
+	@Override
+	public ResponseEntity<Void> resetPassword(ResetPasswordRequest request) {
+		authService.resetPassword(request);
+		return ResponseEntity.noContent().build();
 	}
 }

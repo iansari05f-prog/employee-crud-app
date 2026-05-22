@@ -8,6 +8,7 @@ public record AuthResponse(
 		Long userId,
 		String email,
 		Role role,
-		Long employeeId
+		Long employeeId,
+		boolean mustChangePassword
 ) {
 }

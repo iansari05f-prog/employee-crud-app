@@ -1,9 +1,12 @@
 package com.ems.crud.employee;
 
 import com.ems.crud.auth.User;
+import com.ems.crud.auth.UserAccountService;
+import com.ems.crud.auth.UserRepository;
 import com.ems.crud.common.Role;
 import com.ems.crud.department.Department;
 import com.ems.crud.department.DepartmentRepository;
+import com.ems.crud.employee.dto.CreateEmployeeRequest;
 import com.ems.crud.employee.dto.EmployeeRequest;
 import com.ems.crud.employee.dto.EmployeeResponse;
 import com.ems.crud.exception.DuplicateResourceException;
@@ -23,17 +26,23 @@ public class EmployeeService {
 	private final DepartmentRepository departmentRepository;
 	private final EmployeeMapper employeeMapper;
 	private final SecurityUtils securityUtils;
+	private final UserRepository userRepository;
+	private final UserAccountService userAccountService;
 
 	public EmployeeService(
 			EmployeeRepository employeeRepository,
 			DepartmentRepository departmentRepository,
 			EmployeeMapper employeeMapper,
-			SecurityUtils securityUtils
+			SecurityUtils securityUtils,
+			UserRepository userRepository,
+			UserAccountService userAccountService
 	) {
 		this.employeeRepository = employeeRepository;
 		this.departmentRepository = departmentRepository;
 		this.employeeMapper = employeeMapper;
 		this.securityUtils = securityUtils;
+		this.userRepository = userRepository;
+		this.userAccountService = userAccountService;
 	}
 
 	@Transactional(readOnly = true)
@@ -75,10 +84,11 @@ public class EmployeeService {
 	}
 
 	@Transactional
-	public EmployeeResponse createEmployee(EmployeeRequest request) {
+	public EmployeeResponse createEmployee(CreateEmployeeRequest request) {
 		assertAdminOrHr();
 		String normalizedEmail = normalizeEmail(request.email());
 		validateEmailIsAvailable(normalizedEmail);
+		validateUserEmailIsAvailable(normalizedEmail);
 
 		Department department = findDepartment(request.departmentId());
 		Employee employee = new Employee(
@@ -92,7 +102,9 @@ public class EmployeeService {
 				request.experienceYears()
 		);
 
-		return employeeMapper.toResponse(employeeRepository.save(employee));
+		Employee savedEmployee = employeeRepository.save(employee);
+		userAccountService.createEmployeeAccount(savedEmployee, request.password(), true);
+		return employeeMapper.toResponse(savedEmployee);
 	}
 
 	@Transactional
@@ -101,6 +113,9 @@ public class EmployeeService {
 		Employee employee = findEmployeeById(id);
 		String normalizedEmail = normalizeEmail(request.email());
 		validateEmailIsAvailableForEmployee(normalizedEmail, id);
+		if (!normalizedEmail.equalsIgnoreCase(employee.getEmail())) {
+			validateUserEmailIsAvailable(normalizedEmail);
+		}
 
 		employee.setFirstName(request.firstName().trim());
 		employee.setLastName(request.lastName().trim());
@@ -111,6 +126,7 @@ public class EmployeeService {
 		employee.setSalary(request.salary());
 		employee.setExperienceYears(request.experienceYears());
 
+		userAccountService.syncEmployeeEmail(employee, normalizedEmail);
 		return employeeMapper.toResponse(employee);
 	}
 
@@ -120,6 +136,7 @@ public class EmployeeService {
 		if (!employeeRepository.existsById(id)) {
 			throw new ResourceNotFoundException("Employee not found with id: " + id);
 		}
+		userAccountService.deleteAccountForEmployee(id);
 		employeeRepository.deleteById(id);
 	}
 
@@ -142,6 +159,12 @@ public class EmployeeService {
 	private void validateEmailIsAvailableForEmployee(String email, Long employeeId) {
 		if (employeeRepository.existsByEmailIgnoreCaseAndIdNot(email, employeeId)) {
 			throw new DuplicateResourceException("Employee already exists with email: " + email);
+		}
+	}
+
+	private void validateUserEmailIsAvailable(String email) {
+		if (userRepository.existsByEmailIgnoreCase(email)) {
+			throw new DuplicateResourceException("User already exists with email: " + email);
 		}
 	}
 
