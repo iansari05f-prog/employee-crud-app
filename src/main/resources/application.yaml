@@ -1,3 +1,43 @@
 spring:
   application:
     name: Employee-Management-System
+  datasource:
+    # Set SPRING_DATASOURCE_* env vars (copy from Neon console). Defaults require internet + valid Neon endpoint.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-long-thunder-ap3vhc26-pooler.c-7.us-east-1.aws.neon.tech:5432/neondb?sslmode=require}
+    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
+    password: ${SPRING_DATASOURCE_PASSWORD:npg_GSjPmv8ixF7J}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 15MB
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:mySuperSecretKeyForLocalDevelopment123456789}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  upload:
+    directory: ${UPLOAD_DIRECTORY:uploads}
+  password-reset:
+    expiration-minutes: ${PASSWORD_RESET_EXPIRATION_MINUTES:60}
+    expose-token-in-response: ${PASSWORD_RESET_EXPOSE_TOKEN:false}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
