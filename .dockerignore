@@ -1,10 +1,7 @@
 .git
 .idea
 *.iml
-src
-pom.xml
-.mvn
-mvnw
-mvnw.cmd
-README.md
+target
 uploads
+*.md
+.vscode
